@@ -617,7 +617,6 @@
             opacity: 0.7;
         }
 
-        /* Voice unavailable warning */
         .voice-warning {
             position: fixed;
             bottom: 120px;
@@ -764,6 +763,7 @@
         let isProcessing = false;
         let isInitialized = false;
         let voiceAvailable = false;
+        let welcomeSpoken = false;
 
         // Check if speech synthesis is available
         function getSpeechSynthesis() {
@@ -1240,19 +1240,75 @@
             }
         }
 
-        // Show welcome message with speech
-        function showWelcomeMessage() {
-            const welcomeText = "Hi Tech computer me apka swagat hai";
+        // Show welcome message with speech - called immediately on page load
+        function speakWelcomeMessage() {
+            const welcomeText = "Hi Tech GPT me apka swagat hai";
+            
+            // Add to chat
             addChat('ai', '👋 ' + welcomeText);
             showSubtitle(welcomeText);
             
-            // Speak the welcome message after voices are loaded
-            setTimeout(() => {
-                speakText(welcomeText, () => {
+            // Try to speak immediately
+            if (speechSynth) {
+                // Make sure voices are loaded
+                try {
+                    if (speechVoices.length === 0) {
+                        speechVoices = speechSynth.getVoices() || [];
+                    }
+                } catch(e) {
+                    speechVoices = [];
+                }
+
+                try {
+                    const utterance = new SpeechSynthesisUtterance(welcomeText);
+                    utterance.lang = 'hi-IN';
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 1;
+
+                    const voice = getFemaleVoice();
+                    if (voice) {
+                        utterance.voice = voice;
+                    }
+
+                    currentUtterance = utterance;
+                    isSpeaking = true;
+                    setStatus('speaking', 'Speaking...');
+                    setVideo('speakgirl1.mp4');
+
+                    utterance.onstart = () => {
+                        showSubtitle(welcomeText);
+                    };
+
+                    utterance.onend = () => {
+                        isSpeaking = false;
+                        currentUtterance = null;
+                        setStatus('idle', 'Ready');
+                        setVideo('thinkinggirl1.mp4');
+                        welcomeSpoken = true;
+                    };
+
+                    utterance.onerror = (e) => {
+                        console.warn('Welcome speech error:', e);
+                        isSpeaking = false;
+                        currentUtterance = null;
+                        setStatus('idle', 'Ready');
+                        setVideo('thinkinggirl1.mp4');
+                        welcomeSpoken = true;
+                    };
+
+                    speechSynth.speak(utterance);
+                    voiceAvailable = true;
+                    voiceWarning.classList.remove('show');
+                } catch(e) {
+                    console.warn('Welcome speech error:', e);
                     setStatus('idle', 'Ready');
                     setVideo('thinkinggirl1.mp4');
-                });
-            }, 800);
+                    welcomeSpoken = true;
+                }
+            } else {
+                welcomeSpoken = true;
+            }
         }
 
         // Init
@@ -1270,8 +1326,8 @@
             setVideo('thinkinggirl1.mp4');
             setStatus('idle', 'Ready');
             
-            // Show welcome message
-            showWelcomeMessage();
+            // Speak welcome message immediately after loading
+            speakWelcomeMessage();
 
             micBtn.addEventListener('click', toggleListening);
             fullscreenBtn.addEventListener('click', toggleFullscreen);
